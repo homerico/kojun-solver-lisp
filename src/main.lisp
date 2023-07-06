@@ -4,34 +4,28 @@
 (in-package :kojun)
 
 ;;; Retorna o bloco n do puzzle
-(defun block-values (n l)
+(defun area-values (n l)
   (iter (for i from 0 to (1- (* (tamanho) (tamanho))))
-      (if (= (block-of i) n)
+      (if (= (area-of i) n)
           (collect (nth i l)))))
 
-(defun same-block (i j)
-  (equal (block-of i) (block-of j)))
+(defun same-area (i j)
+  (equal (area-of i) (area-of j)))
 
 ;;; Retorna a coluna n do puzzle
 (defun sd-column (i j l)
     (iter (for k from 0 to (1- (tamanho)))
-        (if (and (>= i k) (same-block i k) (not (equal '_ (nth (+ (* k (tamanho)) j) l))))
-              (iter (for n from (nth (+ (* k (tamanho)) j) l) to (block-length (block-of (+ (* i (tamanho)) j)) l)) (collect n))
-            (when (and (< i k) (same-block i k) (not (equal '_ (nth (+ (* k (tamanho)) j) l))))
+        (if (and (>= i k) (same-area i k) (not (equal '_ (nth (+ (* k (tamanho)) j) l))))
+              (iter (for n from (nth (+ (* k (tamanho)) j) l) to (area-length (area-of (+ (* i (tamanho)) j)) l)) (collect n))
+            (when (and (< i k) (same-area i k) (not (equal '_ (nth (+ (* k (tamanho)) j) l))))
               (iter (for n from 1 to (nth (+ (* k (tamanho)) j) l)) (collect n))))))
-
-  ;  (if (>= j (tamanho)) nil
-;        (let*  ((index (+ i (* j (tamanho))))
-;                (length-of-block (block-length (block-of index) l))
-;                (index-acima (+ i (* (1+ j) (tamanho)))))
-;                (loop for n from 4 to length-of-block collect n) (nth cel l)))
 
 ;;; Retorna as celulas verticalmente e horizontalmente adjacentes à celula na linha i e coluna j
 (defun adjacent-values (i j l)
-  (iter (for k from (1- i) to (1+ i))
+  (iter outer (for k from (1- i) to (1+ i))
         (iter (for m from (1- j) to (1+ j))
             (when (and (>= k 0) (>= m 0) (< k 6) (< m 6) (xor (= k i) (= m j)))
-              (collect (nth (+ (* k (tamanho)) m) l))))))
+                (in outer (collect (nth (+ (* k (tamanho)) m) l)))))))
 
 ;;; Verifica se o puzzle é válido
 (defun valid-p (rcb)
@@ -47,14 +41,14 @@
   (floor (/ i (tamanho))))
 
 ;;; Retorna o bloco do espaço i
-(defun block-of (i)
-  (nth i (block)))
+(defun area-of (i)
+  (nth i (area)))
 
-(defun block-length (n l)
-  (length (block-values n l)))
+(defun area-length (n l)
+  (length (area-values n l)))
 
 (defun all-values-possible-without-constraints (i p)
-  (iter (for var from 1 to (block-length (block-of i) p)) (collect var)))
+  (iter (for var from 1 to (area-length (area-of i) p)) (collect var)))
 
 (defun xor (a b)
   (or (and a (not b)) (and (not a) b)))
@@ -62,7 +56,7 @@
 ;;; Retorna as possibilidades para o espaço i do puzzle
 (defun possible-values (i p)
   (if (integerp (nth i p)) nil                                              ;; Se o espaço já estiver preenchido, retorna nil
-      (let* ((b (block-values (block-of i) p))                                  ;; Senão, retorna a diferença entre o conjunto
+      (let* ((b (area-values (area-of i) p))                                  ;; Senão, retorna a diferença entre o conjunto
              (a (adjacent-values (row-of i) (column-of i) p))
              (c (sd-column (row-of i) (column-of i) p))
              (excluded (remove '_ (remove-duplicates (append b a c)))))
@@ -71,8 +65,8 @@
 ;;; Verifica se o puzzle está resolvido
 (defun solved-p (p)
   (if (member '_ p) nil
-      (iter (for i from 0 to (1- (tamanho)))
-        (when (not (and (valid-p (block-values (block-of i) p))
+      (iter (for i from 0 to (1- (* (tamanho) (tamanho))))
+        (when (not (and (valid-p (area-values (area-of i) p))
                         (valid-p (sd-column (row-of i) (column-of i) p))
                         (valid-p (adjacent-values (row-of i) (column-of i) p)))) (return nil))
         (finally (return t)))))
@@ -91,6 +85,7 @@
 
 ;;; Resolve o puzzle
 (defun kojun (p)
+  (print-result-spaced p)
   (if (solved-p p) p
       (let ((best (best-first p)))                                          ;; Pega index do espaço com menos possibilidades
         (iter (for s in (possible-values best p))                           ;; Para cada possibilidade
@@ -101,7 +96,8 @@
 (defun print-result-spaced (p)
   (iter (for i from 0 to (1- (* (tamanho) (tamanho))))
     (if (zerop (rem i (tamanho))) (format t "~%"))
-    (format t "~a " (nth i p))))
+    (format t "~a " (nth i p)))
+  (format t "~%"))
 
 ;;; Tamanho do puzzle
 (defun tamanho () 6)
@@ -115,7 +111,7 @@
                   _ _ _   _ 3 _
                   6 2 _   2 _ 5 ))
 
-(defun block () '(1 2 2   2 3 4
+(defun area ()  '(1 2 2   2 3 4
                   1 5 2   3 3 3
                   1 1 6   3 7 7
 
@@ -123,4 +119,4 @@
                   8 9 9   11 11 7
                   9 9 9   11 11 11 ))
 
-(print-result-spaced (kojun (table)))
+(kojun (table))
