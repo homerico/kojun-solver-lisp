@@ -15,6 +15,12 @@ sudo apt-get update
 sudo apt-get install clisp
 ```
 
+Como quesito para instalar o Quicklisp, é necessário ter o SBCL instalado. 
+Para isso, basta executar o seguinte comando:
+```bash
+sudo apt-get install sbcl
+```
+
 Após isso, instalar o pacote Quicklisp, basta seguir as instruções presentes em 
 [aqui](https://www.quicklisp.org/beta/).
 
