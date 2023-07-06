@@ -24,7 +24,7 @@
 (defun adjacent-values (i j l)
   (iter outer (for k from (1- i) to (1+ i))
         (iter (for m from (1- j) to (1+ j))
-            (when (and (>= k 0) (>= m 0) (< k 6) (< m 6) (xor (= k i) (= m j)))
+            (when (and (>= k 0) (>= m 0) (< k (tamanho)) (< m (tamanho)) (xor (= k i) (= m j)))
                 (in outer (collect (nth (+ (* k (tamanho)) m) l)))))))
 
 ;;; Verifica se o puzzle é válido
@@ -98,6 +98,30 @@
     (if (zerop (rem i (tamanho))) (format t "~%"))
     (format t "~a " (nth i p)))
   (format t "~%"))
+
+;;;; Tamanho do puzzle
+;(defun tamanho () 8)
+;
+;;;; Exemplo Nr 4
+;(defun table () '(2 5 0 _   _ _ _ _
+;                  _ _ 6 _   _ _ _ _
+;                  _ _ 5 _   5 2 _ _
+;                  _ _ _ 2   _ _ _ _
+;
+;                  _ _ 1 _   4 _ _ _
+;                  3 _ 2 _   _ 4 _ _
+;                  _ _ _ 6   _ _ _ _
+;                  _ _ _ _   4 _ 3 2 ))
+;
+;(defun area ()    '( 1  2  2  2    2  3  4  4
+;                     1  1  6  2    3  3  5  5
+;                     9  8  6  7    3  3 11 11
+;                     9 10  6  6    6  3 11 11
+;
+;                     9 10  6 12   12 12 11 14
+;                    16 10 13 12   13 13 14 14
+;                    16 16 13 13   13 15 15 14
+;                    16 16 17 17   15 15 15 14 ))
 
 ;;; Tamanho do puzzle
 (defun tamanho () 6)
