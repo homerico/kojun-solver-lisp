@@ -1,93 +1,126 @@
-(defpackage sudoku
+(defpackage kojun
   (:use :cl :iterate))
 
-(in-package :sudoku)
+(in-package :kojun)
 
-(defun sd-block (n l)
-  (let ((start (nth n '(0 3 6 27 30 33 54 57 60)))) ; lookup is faster
-    (iter (for b on (nthcdr start l) by #'(lambda (p) (nthcdr 9 p)))
-      (for line from 1 to 3)
-      (appending (subseq b 0 3)))))
+;;; Retorna o bloco n do puzzle
+(defun block-values (n l)
+  (iter (for i from 0 to (1- (* (tamanho) (tamanho))))
+      (if (= (block-of i) n)
+          (collect (nth i l)))))
 
-(defun sd-column (n l)
-  (iter (for c in (nthcdr n l) by #'(lambda (p) (nthcdr 9 p)))
-        (collecting c)))
+(defun same-block (i j)
+  (equal (block-of i) (block-of j)))
 
-(defun sd-row (n l)
-  (subseq (nthcdr (* n 9) l) 0 9))
+;;; Retorna a coluna n do puzzle
+(defun sd-column (i j l)
+    (iter (for k from 0 to (1- (tamanho)))
+        (if (and (>= i k) (same-block i k) (not (equal '_ (nth (+ (* k (tamanho)) j) l))))
+              (iter (for n from (nth (+ (* k (tamanho)) j) l) to (block-length (block-of (+ (* i (tamanho)) j)) l)) (collect n))
+            (when (and (< i k) (same-block i k) (not (equal '_ (nth (+ (* k (tamanho)) j) l))))
+              (iter (for n from 1 to (nth (+ (* k (tamanho)) j) l)) (collect n))))))
 
+  ;  (if (>= j (tamanho)) nil
+;        (let*  ((index (+ i (* j (tamanho))))
+;                (length-of-block (block-length (block-of index) l))
+;                (index-acima (+ i (* (1+ j) (tamanho)))))
+;                (loop for n from 4 to length-of-block collect n) (nth cel l)))
+
+;;; Retorna as celulas verticalmente e horizontalmente adjacentes à celula na linha i e coluna j
+(defun adjacent-values (i j l)
+  (iter (for k from (1- i) to (1+ i))
+        (iter (for m from (1- j) to (1+ j))
+            (when (and (>= k 0) (>= m 0) (< k 6) (< m 6) (xor (= k i) (= m j)))
+              (collect (nth (+ (* k (tamanho)) m) l))))))
+
+;;; Verifica se o puzzle é válido
 (defun valid-p (rcb)
   (let ((digits (remove '_ rcb)))
     (equal digits (remove-duplicates digits))))
 
+;;; Retorna a coluna do espaço i
 (defun column-of (i)
-  (rem i 9))
+  (rem i (tamanho)))
 
+;;; Retorna a linha do espaço i
 (defun row-of (i)
-  (floor (/ i 9)))
+  (floor (/ i (tamanho))))
 
+;;; Retorna o bloco do espaço i
 (defun block-of (i)
-  (let ((column (column-of i))
-        (row (row-of i)))
-    (+ (floor column 3) (* 3 (floor row 3)))))
+  (nth i (block)))
 
+(defun block-length (n l)
+  (length (block-values n l)))
+
+(defun all-values-possible-without-constraints (i p)
+  (iter (for var from 1 to (block-length (block-of i) p)) (collect var)))
+
+(defun xor (a b)
+  (or (and a (not b)) (and (not a) b)))
+
+;;; Retorna as possibilidades para o espaço i do puzzle
 (defun possible-values (i p)
-  (if (integerp (nth i p)) nil
-      (let* ((b (sd-block (block-of i) p))
-             (r (sd-row (row-of i) p))
-             (c (sd-column (column-of i) p))
-             (excluded (remove '_ (remove-duplicates (append b r c)))))
-        (set-difference '(1 2 3 4 5 6 7 8 9) excluded))))
+  (if (integerp (nth i p)) nil                                              ;; Se o espaço já estiver preenchido, retorna nil
+      (let* ((b (block-values (block-of i) p))                                  ;; Senão, retorna a diferença entre o conjunto
+             (a (adjacent-values (row-of i) (column-of i) p))
+             (c (sd-column (row-of i) (column-of i) p))
+             (excluded (remove '_ (remove-duplicates (append b a c)))))
+        (set-difference (all-values-possible-without-constraints i p) excluded))))
 
- ;;; find the index of the space in the puzzle with the fewest possible values
-(defun best-first (p)
-  (iter (for i from 0 to 80)
-    (finding i minimizing (let ((l (length (possible-values i p))))
-                            (if (zerop l) 10 l))))) ;; ensure filled spaces aren't returned
-
- ;;; Verifica se o puzzle está resolvido
+;;; Verifica se o puzzle está resolvido
 (defun solved-p (p)
   (if (member '_ p) nil
-      (iter (for i from 0 to 8)
-        (when (not (and (valid-p (sd-block i p))
-                        (valid-p (sd-column i p))
-                        (valid-p (sd-row i p)))) (return nil))
+      (iter (for i from 0 to (1- (tamanho)))
+        (when (not (and (valid-p (block-values (block-of i) p))
+                        (valid-p (sd-column (row-of i) (column-of i) p))
+                        (valid-p (adjacent-values (row-of i) (column-of i) p)))) (return nil))
         (finally (return t)))))
 
-;;; economize a bit on consing
+;;; find the index of the space in the puzzle with the fewest possible values
+(defun best-first (p)
+  (iter (for i from 0 to (1- (* (tamanho) (tamanho))))
+    (finding i minimizing (let ((l (length (possible-values i p))))         ;; find the index of the space with the fewest possible values
+                            (if (zerop l) (1+ (tamanho)) l)))))             ;; ensure filled spaces aren't returned
+
+;;; Substitui o valor na posição n da lista por val
 (defun replace-nth (list n val)
-    (case n
-      (0 (cons val (cdr list)))
-      (t (nconc (subseq list 0 n) (list val) (nthcdr (1+ n) list)))))
+    (case n                                                                 ;; Se n for 0, substitui o primeiro elemento
+      (0 (cons val (cdr list)))                                             ;; Se não, substitui o elemento na posição n
+      (t (nconc (subseq list 0 n) (list val) (nthcdr (1+ n) list)))))       ;; e concatena com o resto da lista
 
-(defun sudoku (p)
+;;; Resolve o puzzle
+(defun kojun (p)
   (if (solved-p p) p
-      (let ((best (best-first p)))
-        (iter (for s in (possible-values best p))
-          (let ((solution (sudoku (replace-nth p best s))))
-            (when solution (return solution)))))))
-            
+      (let ((best (best-first p)))                                          ;; Pega index do espaço com menos possibilidades
+        (iter (for s in (possible-values best p))                           ;; Para cada possibilidade
+          (let ((solution (kojun (replace-nth p best s))))                  ;; Tenta resolver o puzzle com a possibilidade
+            (when solution (return solution)))))))                          ;; Se a solução for encontrada, retorna
 
-(write-line (sudoku '(_ _ 8   _ _ _   6 _ _
-          _ 4 _   9 _ 2   _ 5 _
-          _ _ _   6 4 8   _ _ _
+;;; Imprime o resultado
+(defun print-result-spaced (p)
+  (iter (for i from 0 to (1- (* (tamanho) (tamanho))))
+    (if (zerop (rem i (tamanho))) (format t "~%"))
+    (format t "~a " (nth i p))))
 
-          _ 3 9   _ 2 _   1 7 _
-          _ 1 _   _ _ _   _ 3 _
-          _ 8 5   _ 1 _   2 6 _
+;;; Tamanho do puzzle
+(defun tamanho () 6)
 
-          _ _ _   2 8 7   _ _ _
-          _ 6 _   1 _ 4   _ 8 _
-          _ _ 2   _ _ _   5 _ _)))
+;;; Exemplo Nr 2
+(defun table () '(_ _ 4   _ 2 _
+                  _ _ 3   _ _ _
+                  1 4 _   4 _ _
 
-;(3 9 8 | 5 7 1 | 6 2 4 |
-; 6 4 1 | 9 3 2 | 8 5 7 |
-; 5 2 7 | 6 4 8 | 9 1 3 |
+                  _ 5 _   _ _ 2
+                  _ _ _   _ 3 _
+                  6 2 _   2 _ 5 ))
 
-; 4 3 9 | 8 2 6 | 1 7 5 |
-; 2 1 6 | 7 9 5 | 4 3 8 |
-; 7 8 5 | 4 1 3 | 2 6 9 |
+(defun block () '(1 2 2   2 3 4
+                  1 5 2   3 3 3
+                  1 1 6   3 7 7
 
-; 1 5 4 | 2 8 7 | 3 9 6 |
-; 9 6 3 | 1 5 4 | 7 8 2 |
-; 8 7 2 | 3 6 9 | 5 4 1)
+                  8 9 6   10 10 7
+                  8 9 9   11 11 7
+                  9 9 9   11 11 11 ))
+
+(print-result-spaced (kojun (table)))
